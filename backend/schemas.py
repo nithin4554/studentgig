@@ -42,6 +42,11 @@ class LoginRequest(BaseModel):
     name: Optional[str] = "Student"
 
 
+class GoogleLoginRequest(BaseModel):
+    """POST /api/auth/google — expects a Google ID token."""
+    idToken: str
+
+
 class UserResponse(BaseModel):
     id: int
     phone: str

@@ -23,7 +23,7 @@ from models import Base, Job as JobModel, User as UserModel, Application as AppM
 from schemas import (
     JobCreate, JobResponse, LoginRequest, TokenResponse, UserResponse,
     ApplicationCreate, ApplicationResponse, ApplicationDetailResponse,
-    ProfileUpdate,
+    ProfileUpdate, GoogleLoginRequest,
 )
 from auth import create_access_token, get_current_user, get_optional_user
 from ai_engine import calculate_match_score
@@ -305,6 +305,48 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": user,
     }
+
+
+@app.post("/api/auth/google", response_model=TokenResponse, tags=["Auth"])
+def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
+    """
+    Google-based login. Extracts email from ID token as unique identifier.
+    Creates user if new, returns JWT token.
+    For MVP: Decodes token locally without full signature verification.
+    """
+    try:
+        import jwt
+        # Decode the token without signature verification to extract info for MVP
+        payload = jwt.decode(request.idToken, options={"verify_signature": False})
+        email = payload.get("email")
+        name = payload.get("name", "Google User")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Invalid token: no email found")
+            
+        # Find or create user using email in place of phone
+        user = db.query(UserModel).filter(UserModel.phone == email).first()
+        if not user:
+            user = UserModel(
+                phone=email,
+                name=name,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            print(f"✅ New Google user registered: {user.phone}")
+            
+        # Generate JWT
+        token = create_access_token(user_id=user.id, phone=user.phone)
+        
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": user,
+        }
+    except Exception as e:
+        print(f"❌ Google Login Error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Google Token")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════

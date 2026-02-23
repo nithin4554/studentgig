@@ -29,7 +29,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    phone = Column(String(15), unique=True, nullable=False, index=True)
+    phone = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False, default="Student")
     skills_json = Column(Text, nullable=True)  # JSON string: '["python", "hindi"]'
     role = Column(String(50), default="student")  # student | employer
