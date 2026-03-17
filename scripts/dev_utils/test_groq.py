@@ -1,7 +1,15 @@
 """Quick test for Groq AI integration."""
 import os, sys
 
-# Note: Ensure GROQ_API_KEY is set in your environment
+# Note: Ensure GROQ_API_KEY is set in your environment or backend/.env
+try:
+    from dotenv import load_dotenv
+    # Look for .env in the backend folder
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", "backend", ".env")
+    load_dotenv(env_path)
+except ImportError:
+    pass
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "backend"))
 
 from ai_llm import generate_job_description, parse_natural_language_search, generate_application_note
