@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StudentGig</string>
+    <!-- Web Client ID for Google Auth (Needs to be replaced with actual ID from Google Cloud Console) -->
+    <string name="default_web_client_id">887411345380-dbf81i9dg7chd0vrthul1e0r903g9shk.apps.googleusercontent.com</string>
+</resources>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "676165656806",
+    "project_id": "stugig-7b5e4",
+    "storage_bucket": "stugig-7b5e4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:676165656806:android:6ab2f18750f09de9d3db27",
+        "android_client_info": {
+          "package_name": "com.studentgig.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsnKAHWm3jKBUCKg3xCKRQF33GfujQKB4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -26,8 +26,8 @@ function timeAgo(dateStr: string | null | undefined): string {
 }
 import { GoogleLogin } from '@react-oauth/google';
 
-// --- Global API URL ---
-const API_URL = 'http://localhost:8000';
+// --- Global API URL --- (use env var in production, fallback to localhost for dev)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // --- TOAST NOTIFICATION SYSTEM ---
 type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -210,13 +210,42 @@ function AppContent() {
   );
 }
 
+// --- ERROR BOUNDARY ---
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff', flexDirection: 'column', gap: '16px', padding: '40px', textAlign: 'center' }}>
+          <Zap size={48} color="#8B5CF6" />
+          <h1 style={{ fontSize: '28px', fontWeight: 700 }}>Something went wrong</h1>
+          <p style={{ color: '#A1A1AA', maxWidth: '400px' }}>An unexpected error occurred. Please refresh the page to continue.</p>
+          <button onClick={() => window.location.reload()} style={{ background: 'white', color: 'black', border: 'none', padding: '12px 24px', borderRadius: '99px', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}>Refresh Page</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -454,7 +483,7 @@ function LandingPage() {
               color: 'var(--text-secondary)', fontSize: '13px', textDecoration: 'none', marginBottom: '32px'
             }}
           >
-            <span className="badge badge-ai" style={{ padding: '4px 10px' }}><Sparkles size={12} /> GPT-4 Powered</span>
+            <span className="badge badge-ai" style={{ padding: '4px 10px' }}><Sparkles size={12} /> AI-Powered</span>
             Introducing AI Skill Matching <ChevronRight size={14} />
           </motion.a>
 
@@ -498,7 +527,7 @@ function LandingPage() {
                 <BrainCircuit color="var(--primary)" size={32} style={{ marginBottom: '24px' }} />
                 <h3 style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '12px' }}>Hyper-Personalized Feed</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '16px', maxWidth: '400px' }}>
-                  Our AI analyzes your GitHub, university transcript, and past projects to mathematically rank the best-paying projects for you.
+                  Our AI analyzes your skills profile and past gig history to mathematically rank the best-paying projects for you.
                 </p>
                 <div style={{ flex: 1 }} />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '32px' }}>
@@ -1222,16 +1251,19 @@ function EmployersPage() {
 
   const [employerApps, setEmployerApps] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (token) {
-      fetch(`${API_URL}/api/employer/applications`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => setEmployerApps(Array.isArray(data) ? data : []))
-        .catch(() => { });
-    }
+  const refreshEmployerApps = useCallback(() => {
+    if (!token) return;
+    fetch(`${API_URL}/api/employer/applications`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setEmployerApps(Array.isArray(data) ? data : []))
+      .catch(() => { });
   }, [token]);
+
+  useEffect(() => {
+    refreshEmployerApps();
+  }, [refreshEmployerApps]);
 
   const addSkill = () => {
     const trimmed = skillInput.trim().toLowerCase();
@@ -1267,9 +1299,13 @@ function EmployersPage() {
       const data = await res.json();
       if (res.ok) {
         setDesc(data.description);
-        if (data.skills_suggested && Array.isArray(JSON.parse(data.skills_suggested))) {
-          const suggested = JSON.parse(data.skills_suggested);
-          setSkills(prev => Array.from(new Set([...prev, ...suggested])));
+        if (data.suggested_skills) {
+          try {
+            const suggested = typeof data.suggested_skills === 'string' ? JSON.parse(data.suggested_skills) : data.suggested_skills;
+            if (Array.isArray(suggested)) {
+              setSkills(prev => Array.from(new Set([...prev, ...suggested])));
+            }
+          } catch (_) { /* ignore parse errors */ }
         }
         toast('AI Polished your description!', 'success');
       }
@@ -1293,9 +1329,9 @@ function EmployersPage() {
         body: JSON.stringify({ category, location, duration, job_type: 'one-time' })
       });
       const data = await res.json();
-      if (res.ok) {
-        setBudget(data.suggested_pay.toString());
-        toast(`AI suggests ₹${data.suggested_pay} based on market data`, 'info');
+      if (res.ok && data.avg_pay != null) {
+        setBudget(Math.round(data.avg_pay).toString());
+        toast(`AI suggests ₹${Math.round(data.avg_pay)} based on ${data.sample_size} similar gigs (${data.confidence} confidence)`, 'info');
       }
     } catch (err) {
       toast('Market analysis failed.', 'error');
@@ -1539,7 +1575,7 @@ function EmployersPage() {
                             method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                             body: JSON.stringify({ status: 'accepted' })
                           });
-                          if (res.ok) { toast('Applicant accepted!', 'success'); window.location.reload(); }
+                          if (res.ok) { toast('Applicant accepted!', 'success'); refreshEmployerApps(); }
                         }} className="badge badge-ai" style={{ cursor: 'pointer' }}>Accept</button>
 
                         <button onClick={async () => {
@@ -1547,7 +1583,7 @@ function EmployersPage() {
                             method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                             body: JSON.stringify({ status: 'rejected' })
                           });
-                          if (res.ok) window.location.reload();
+                          if (res.ok) { toast('Applicant rejected', 'info'); refreshEmployerApps(); }
                         }} className="badge badge-neutral" style={{ cursor: 'pointer' }}>Reject</button>
                       </div>
                     )}
@@ -1557,7 +1593,7 @@ function EmployersPage() {
                         const res = await fetch(`${API_URL}/api/applications/${app.id}/start-work`, {
                           method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        if (res.ok) window.location.reload();
+                        if (res.ok) { toast('Work started!', 'success'); refreshEmployerApps(); }
                       }} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Confirm Arrival (Start Work)</button>
                     )}
 
@@ -1566,7 +1602,7 @@ function EmployersPage() {
                         const res = await fetch(`${API_URL}/api/applications/${app.id}/confirm`, {
                           method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        if (res.ok) window.location.reload();
+                        if (res.ok) { toast('Confirmed & paid!', 'success'); refreshEmployerApps(); }
                       }} className="badge badge-ai" style={{ cursor: 'pointer' }}>Confirm Quality & Pay</button>
                     )}
 
@@ -1578,7 +1614,7 @@ function EmployersPage() {
                             method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                             body: JSON.stringify({ score: parseInt(score), review: '' })
                           });
-                          if (res.ok) { toast('Rated successfully!', 'success'); window.location.reload(); } else { toast('Already rated or error occurred.', 'warning'); }
+                          if (res.ok) { toast('Rated successfully!', 'success'); refreshEmployerApps(); } else { toast('Already rated or error occurred.', 'warning'); }
                         }
                       }} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Rate Student ⭐</button>
                     )}
@@ -1705,6 +1741,14 @@ function ProfilePage() {
 
     fetchAll();
   }, [token, setLoginModalOpen]);
+
+  const refreshApplications = useCallback(async () => {
+    if (!token) return;
+    try {
+      const appRes = await fetch(`${API_URL}/api/my-applications`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (appRes.ok) setApplications(await appRes.json());
+    } catch (err) { console.error(err); }
+  }, [token]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1853,7 +1897,7 @@ function ProfilePage() {
                             <button
                               onClick={async () => {
                                 const res = await fetch(`${API_URL}/api/applications/${app.id}/check-in`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                                if (res.ok) window.location.reload();
+                                if (res.ok) { toast('Checked in!', 'success'); refreshApplications(); }
                               }}
                               className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }}>
                               I've Arrived (Check-In)
@@ -1863,7 +1907,7 @@ function ProfilePage() {
                             <button
                               onClick={async () => {
                                 const res = await fetch(`${API_URL}/api/applications/${app.id}/complete`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                                if (res.ok) window.location.reload();
+                                if (res.ok) { toast('Work marked as done!', 'success'); refreshApplications(); }
                               }}
                               className="badge badge-ai" style={{ cursor: 'pointer' }}>
                               Mark Work Done
@@ -1873,7 +1917,7 @@ function ProfilePage() {
                             <button
                               onClick={async () => {
                                 const res = await fetch(`${API_URL}/api/applications/${app.id}/confirm-payment`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                                if (res.ok) window.location.reload();
+                                if (res.ok) { toast('Payment confirmed!', 'success'); refreshApplications(); }
                               }}
                               className="badge badge-ai" style={{ cursor: 'pointer' }}>
                               Confirm Payment Received
@@ -1888,7 +1932,7 @@ function ProfilePage() {
                                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                                     body: JSON.stringify({ score: parseInt(score), review: '' })
                                   });
-                                  if (res.ok) { toast('Rated successfully!', 'success'); window.location.reload(); } else { toast('Already rated or error occurred.', 'warning'); }
+                                  if (res.ok) { toast('Rated successfully!', 'success'); refreshApplications(); } else { toast('Already rated or error occurred.', 'warning'); }
                                 }
                               }}
                               className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }}>

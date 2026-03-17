@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "StudentGig"
-include(":app")
+include(":mobile")

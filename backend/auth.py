@@ -7,15 +7,22 @@ Usage in endpoints:
   - Optional:  Depends(get_optional_user)
 """
 
+import os
+import logging
 import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 
+logger = logging.getLogger("studentgig")
+
 # ─── Config ──────────────────────────────────────────────────────────────────────
 
-SECRET_KEY = "studentgig-local-dev-secret-key-2026"  # Change in production!
+_DEFAULT_SECRET = "studentgig-local-dev-secret-key-2026"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", _DEFAULT_SECRET)
+if SECRET_KEY == _DEFAULT_SECRET:
+    logger.warning("⚠️  Using default JWT secret — set JWT_SECRET_KEY env var for production!")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 72  # 3 days for dev convenience
 
