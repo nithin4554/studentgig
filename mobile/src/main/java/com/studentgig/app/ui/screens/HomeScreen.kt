@@ -50,6 +50,7 @@ fun HomeScreen(
     onJobClick: (Int) -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     unreadNotificationCount: Int = 0,
+    onLoginSuccess: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -79,13 +80,18 @@ fun HomeScreen(
     // Login sheet
     if (uiState.showLoginSheet) {
         GigLoginBottomSheet(
-            isLoading = uiState.isLoggingIn,
-            errorMessage = uiState.loginError,
-            onLogin = { phone, name -> viewModel.onLoginSubmit(phone, name) },
-            onGoogleLogin = { idToken -> viewModel.onGoogleLogin(idToken) },
-            onFirebaseLogin = { idToken, name -> viewModel.onFirebaseLogin(idToken, name) },
-            onDismiss = { viewModel.dismissLoginSheet() }
+            onDismiss = { viewModel.dismissLoginSheet() },
+            onSuccess = onLoginSuccess
         )
+    }
+
+    // Role-based block: Employers should not see the student jobs feed.
+    // Navigation.kt will redirect, but we hide content here to prevent flickering.
+    if (uiState.role == "employer") {
+        Box(modifier = Modifier.fillMaxSize().background(GigColors.Background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = GigColors.Primary)
+        }
+        return
     }
 
     Scaffold(
@@ -113,19 +119,11 @@ fun HomeScreen(
                         onRetry = { viewModel.retry() }
                     )
                 }
-                // Loading — show shimmer skeleton cards
-                uiState.isCheckingServer || uiState.isLoadingJobs -> {
+                // Loading — show shimmer skeleton cards only if we have NO jobs yet
+                (uiState.isCheckingServer || uiState.isLoadingJobs) && uiState.jobs.isEmpty() -> {
                     GigShimmerLoading(cardCount = 4)
                 }
-                // Empty
-                uiState.jobs.isEmpty() -> {
-                    GigEmptyState(
-                        icon = Icons.Outlined.WorkOutline,
-                        title = "No jobs available",
-                        subtitle = "New opportunities are posted every day!"
-                    )
-                }
-                // Content
+                // Content (handles both Empty and Filled states natively)
                 else -> {
                     val pullState = rememberPullToRefreshState()
                     val listState = rememberLazyListState()
@@ -350,10 +348,19 @@ fun HomeScreen(
                             }
 
                             // ─── Job Cards with Cascade Spring Entrance ───────────
-                            items(
-                                sortedJobs,
-                                key = { it.id }
-                            ) { job ->
+                            if (sortedJobs.isEmpty()) {
+                                item {
+                                    GigEmptyState(
+                                        icon = Icons.Outlined.WorkOutline,
+                                        title = "No jobs available",
+                                        subtitle = "New opportunities are posted every day!"
+                                    )
+                                }
+                            } else {
+                                items(
+                                    sortedJobs,
+                                    key = { it.id }
+                                ) { job ->
                                 val index = sortedJobs.indexOf(job)
 
                                 Box(
@@ -368,13 +375,14 @@ fun HomeScreen(
                                 ) {
                                     GigJobCard(
                                         job = job,
-                                        isApplying = uiState.isApplying,
-                                        onApplyClick = { viewModel.onApplyClicked(job.id) },
+                                        isApplying = uiState.isApplying && uiState.pendingApplyJobId == job.id,
+                                        onApplyClick = { onJobClick(job.id) },
                                         onCardClick = { onJobClick(job.id) },
                                         isApplied = job.id in uiState.appliedJobIds,
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
+                            }
                             }
 
                             item { Spacer(modifier = Modifier.height(12.dp)) }

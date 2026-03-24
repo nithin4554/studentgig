@@ -541,3 +541,393 @@ body {
   line-height: 1.6;
 }
 
+/* ===== Auth Modal Premium Styles ===== */
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.auth-modal {
+  position: relative;
+  width: 92%;
+  max-width: 460px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 40px 36px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.auth-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--primary), var(--accent), var(--success));
+  border-radius: 28px 0 0 28px;
+}
+
+/* Auth Header Icon */
+.auth-header-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.auth-header-icon.login-icon {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.auth-header-icon.register-icon {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.auth-header-icon.forgot-icon {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.auth-header-icon::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 20px;
+  background: inherit;
+  opacity: 0.3;
+  filter: blur(8px);
+  z-index: -1;
+  animation: icon-pulse 3s ease-in-out infinite;
+}
+
+@keyframes icon-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.05); }
+}
+
+/* Role Selector Cards */
+.auth-role-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.auth-role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-secondary);
+}
+
+.auth-role-card:hover {
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+}
+
+.auth-role-card.active {
+  border-color: var(--primary);
+  background: rgba(139, 92, 246, 0.08);
+  color: white;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+.auth-role-card .role-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s ease;
+}
+
+.auth-role-card.active .role-icon {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.auth-role-card .role-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-role-card .role-desc {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* Auth Input with Icon */
+.auth-input-wrapper {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 0.2s ease;
+  z-index: 2;
+}
+
+.auth-input-wrapper:focus-within .auth-input-icon {
+  color: var(--primary);
+}
+
+/* Password Toggle */
+.auth-password-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s ease;
+  z-index: 2;
+}
+
+.auth-password-toggle:hover {
+  color: var(--text-primary);
+}
+
+/* Field Validation States */
+.input-field.field-error {
+  border-color: #EF4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3) !important;
+}
+
+.input-field.field-success {
+  border-color: #10B981 !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3) !important;
+}
+
+.field-error-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #EF4444;
+  padding: 6px 0 2px 4px;
+  animation: field-error-in 0.3s ease;
+}
+
+.field-success-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #10B981;
+  padding: 6px 0 2px 4px;
+  animation: field-error-in 0.3s ease;
+}
+
+@keyframes field-error-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Password Strength Meter */
+.password-strength-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.password-strength-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
+}
+
+.password-strength-fill.str-weak { width: 33%; background: #EF4444; }
+.password-strength-fill.str-medium { width: 66%; background: #F59E0B; }
+.password-strength-fill.str-strong { width: 100%; background: #10B981; }
+
+.password-strength-label {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.password-strength-label.str-weak { color: #EF4444; }
+.password-strength-label.str-medium { color: #F59E0B; }
+.password-strength-label.str-strong { color: #10B981; }
+
+/* Auth Section Divider */
+.auth-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.auth-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* Auth OR Divider */
+.auth-or-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.auth-or-divider::before,
+.auth-or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-or-divider span {
+  margin: 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Auth Submit Buttons */
+.auth-submit-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-submit-btn.login-btn {
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  color: white;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+}
+
+.auth-submit-btn.login-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+}
+
+.auth-submit-btn.register-btn {
+  background: linear-gradient(135deg, #10B981, #059669);
+  color: white;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.auth-submit-btn.register-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Auth Mode Toggle */
+.auth-mode-toggle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 16px;
+}
+
+.auth-mode-toggle button {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.auth-mode-toggle button:hover {
+  color: var(--primary-light);
+  text-decoration: underline;
+}
+
+/* Auth Field Group */
+.auth-field-group {
+  margin-bottom: 16px;
+}
+
+/* Loading Spinner */
+.auth-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: auth-spin 0.6s linear infinite;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Shake animation for errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.field-shake {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+

@@ -20,6 +20,21 @@ Features:
   - GET  /api/earnings                      → Student earnings summary
 """
 
+import sys
+import io
+
+# --- Disabled wrapping because it was causing crashes on reload ---
+# if sys.platform == "win32":
+#     try:
+#         sys.stdout = io.TextIOWrapper(
+#             sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+#         )
+#         sys.stderr = io.TextIOWrapper(
+#             sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+#         )
+#     except Exception:
+#         pass
+
 import logging
 import os
 from dotenv import load_dotenv
@@ -38,31 +53,50 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import jwt as pyjwt  # Pre-import for fast Google login
 
-# ─── Logging setup ───────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+# --- Direct bcrypt hashing (Fixes passlib Windows incompatibility) ---
+import bcrypt as bcrypt_lib
+
+def hash_password(password: str) -> str:
+    """Securely hash a password using bcrypt."""
+    if not password:
+        return ""
+    salt = bcrypt_lib.gensalt()
+    return bcrypt_lib.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a bcrypt hash."""
+    if not password or not hashed_password:
+        return False
+    try:
+        return bcrypt_lib.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception as e:
+        logger.error(f"Password verification error: {e}")
+        return False
+
+# --- Logging setup ---
+logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger("studentgig")
 
 from database import engine, get_db, SessionLocal
 from models import Base, Job as JobModel, User as UserModel, Application as AppModel, Payment as PaymentModel, Rating as RatingModel, Notification as NotifModel
 from schemas import (
-    JobCreate, JobResponse, JobUpdate, LoginRequest, TokenResponse, UserResponse,
+    JobCreate, JobResponse, JobUpdate, LoginRequest, RegisterRequest, TokenResponse, UserResponse,
     ApplicationCreate, ApplicationResponse, ApplicationDetailResponse,
     ProfileUpdate, GoogleLoginRequest, FirebaseLoginRequest, ApplicationStatusUpdate, EarningsResponse,
     ApplicantResponse, JOB_CATEGORIES, ConflictCheckResponse, PaymentResponse,
     RatingCreate, RatingResponse, NotificationResponse, NotificationCountResponse,
+    ResetPasswordCheck, ResetPasswordFinal,
     # AI Schemas
     AIJobResponse, AISkillRecommendationsResponse, AIApplicantResponse,
     AIPayEstimateRequest, AIPayEstimateResponse,
     AIGenerateDescriptionRequest, AIGenerateDescriptionResponse,
     AISmartSearchRequest, AISmartSearchResponse,
+    DemoLoginRequest,
     AIApplicationNoteRequest, AIApplicationNoteResponse,
     AIMatchExplanationResponse, AIEarningsInsightsResponse,
 )
 from auth import create_access_token, get_current_user, get_optional_user
+from passlib.hash import bcrypt
 from ai_engine import (
     calculate_match_score, calculate_match_explanation,
     compute_smart_feed_score, recommend_skills,
@@ -142,6 +176,11 @@ def migrate_database():
             ("applications", "checked_in_at", "ALTER TABLE applications ADD COLUMN checked_in_at DATETIME NULL"),
             ("applications", "work_done_at", "ALTER TABLE applications ADD COLUMN work_done_at DATETIME NULL"),
             ("applications", "confirmed_at", "ALTER TABLE applications ADD COLUMN confirmed_at DATETIME NULL"),
+            # Authentication: Passwords & Recovery
+            ("users", "hashed_password", "ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255) NULL"),
+            ("users", "security_question", "ALTER TABLE users ADD COLUMN security_question VARCHAR(255) NULL"),
+            ("users", "hashed_security_answer", "ALTER TABLE users ADD COLUMN hashed_security_answer VARCHAR(255) NULL"),
+            ("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'student'"),
         ]
 
         applied = 0
@@ -198,15 +237,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-_cors_origins_raw = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins_raw = os.environ.get("CORS_ORIGINS", "")
 _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
-if _cors_origins == ["*"]:
-    logger.warning("⚠️  CORS allows all origins — set CORS_ORIGINS env var for production!")
+# Always allow local web dev and local IP for mobile dev
+_cors_origins.extend(["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"])
+
+if not _cors_origins_raw:
+    logger.warning("⚠️  CORS using developer defaults (localhost:5173/3000)")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -222,17 +264,28 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # ─── Global Exception Handler — prevents server crash on unhandled errors ────────
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """
-    Catch-all handler: any unhandled exception returns a clean 500 JSON
-    instead of crashing the uvicorn worker process.
+    Catch-all handler: any unhandled exception returns a clean 500 JSON.
+    We EXCLUDE HTTPException and RequestValidationError so standard FastAPI
+    handlers can return 400/401/422 with useful detail messages.
     """
+    if isinstance(exc, (StarletteHTTPException, RequestValidationError)):
+        # Re-raise to let FastAPI's specialized handlers manage these
+        raise exc
+
     logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={"detail": "Internal server error. Please try again."},
     )
+    # Manual CORS fallback for unhandled exceptions
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 # ─── SEED DATA ───────────────────────────────────────────────────────────────────
@@ -457,13 +510,14 @@ def get_jobs(
     if category:
         query = query.filter(JobModel.category == category)
 
-    jobs = query.order_by(JobModel.created_at.desc()).offset(skip).limit(limit).all()
-
     user = None
     if current_user:
-        user = db.query(UserModel).filter(
-            UserModel.id == int(current_user["sub"])
-        ).first()
+        user_id = int(current_user["sub"])
+        # Exclude jobs posted by the current user
+        query = query.filter((JobModel.employer_id != user_id) | (JobModel.employer_id == None))
+        user = db.query(UserModel).filter(UserModel.id == user_id).first()
+
+    jobs = query.order_by(JobModel.created_at.desc()).offset(skip).limit(limit).all()
 
     return [_job_to_dict(j, _score_job(j, user, db), db) for j in jobs]
 
@@ -511,13 +565,14 @@ def search_jobs(
     if category:
         query = query.filter(JobModel.category == category)
 
-    jobs = query.order_by(JobModel.created_at.desc()).offset(skip).limit(limit).all()
-
     user = None
     if current_user:
-        user = db.query(UserModel).filter(
-            UserModel.id == int(current_user["sub"])
-        ).first()
+        user_id = int(current_user["sub"])
+        # Exclude jobs posted by the current user
+        query = query.filter((JobModel.employer_id != user_id) | (JobModel.employer_id == None))
+        user = db.query(UserModel).filter(UserModel.id == user_id).first()
+
+    jobs = query.order_by(JobModel.created_at.desc()).offset(skip).limit(limit).all()
 
     return [_job_to_dict(j, _score_job(j, user, db), db) for j in jobs]
 
@@ -534,6 +589,10 @@ def create_job(
     """
     user_id = int(current_user["sub"])
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
+
+    # ─── Role check: Only employers can post jobs ────────────────────────
+    if user and user.role == "student":
+        raise HTTPException(status_code=403, detail="Only employers can post jobs")
 
     db_job = JobModel(
         title=job.title,
@@ -774,54 +833,80 @@ def get_jobs_legacy(db: Session = Depends(get_db)):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════
-#  AUTH — Phone-based login (OTP mocked for MVP)
+#  AUTH — Secure Password-Based Login & Registration
 # ═══════════════════════════════════════════════════════════════════════════════════
 
+@app.post("/api/register", response_model=TokenResponse, tags=["Auth"])
+def register(body: RegisterRequest, db: Session = Depends(get_db)):
+    """Register a new user with password and security recovery questions."""
+    logger.info(f"--- [REGISTER START] Phone: {body.phone} ---")
+    existing_user = db.query(UserModel).filter(UserModel.phone == body.phone).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this phone number already exists.")
+
+    # Truncate strings to avoid bcrypt 72-byte limit (prevents ValueError)
+    safe_pwd = body.password[:72]
+    safe_ans = body.security_answer.strip().lower()[:72]
+
+    user = UserModel(
+        phone=body.phone,
+        name=body.name,
+        hashed_password=hash_password(safe_pwd),
+        security_question=body.security_question,
+        hashed_security_answer=hash_password(safe_ans),
+        role=body.role
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(f"New user registered: {user.phone} ({user.name})")
+    access_token = create_access_token(user_id=user.id, phone=user.phone)
+    return {"access_token": access_token, "token_type": "bearer", "user": _user_response_dict(user)}
+
+
 @app.post("/api/login", response_model=TokenResponse, tags=["Auth"])
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """
-    Phone-based login. Creates user if new, returns JWT token.
-    For MVP: No OTP verification — accepts any phone number.
-    """
-    # Find or create user
+    """Secure password-based login. Verifies hashed password."""
     user = db.query(UserModel).filter(UserModel.phone == body.phone).first()
     if not user:
-        # Strict Tester Check: Is this name already taken by another phone number?
-        if body.name and body.name != "Student":
-            existing_name = db.query(UserModel).filter(UserModel.name == body.name.strip()).first()
-            if existing_name:
-                logger.warning(f"Registration blocked: Name '{body.name}' is already taken by {existing_name.phone}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"The name '{body.name}' is already in use by another student. "
-                           f"Please add your last name or a middle initial to make it unique."
-                )
+        raise HTTPException(status_code=401, detail="User not found. Please register.")
 
-        user = UserModel(
-            phone=body.phone,
-            name=body.name or "Student",
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        logger.info(f"New user registered: {user.phone} as {user.name}")
-    else:
-        # If returning user provides a real name (and their current name is 'Student' or they changed it), update it.
-        if body.name and body.name.strip() and body.name != "Student" and user.name != body.name:
-            user.name = body.name.strip()
-            db.commit()
-            db.refresh(user)
-            logger.info(f"Updated returning user's name: {user.phone} -> {user.name}")
+    if not user.hashed_password:
+        raise HTTPException(status_code=403, detail="Legacy account detected. Use 'Forgot Password'.")
 
-    # Generate JWT
-    token = create_access_token(user_id=user.id, phone=user.phone)
+    # Verify hashed password
+    if not verify_password(body.password[:72], user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid password.")
 
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": _user_response_dict(user),
-    }
+    access_token = create_access_token(user_id=user.id, phone=user.phone)
+    logger.info(f"User logged in: {user.phone}")
+    return {"access_token": access_token, "token_type": "bearer", "user": _user_response_dict(user)}
+
+
+@app.post("/api/auth/reset-get-question", tags=["Auth"])
+def get_security_question(body: ResetPasswordCheck, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.phone == body.phone).first()
+    if not user or not user.security_question:
+        raise HTTPException(status_code=404, detail="User not found or no recovery setup.")
+    return {"question": user.security_question}
+
+
+@app.post("/api/auth/reset-password", tags=["Auth"])
+def reset_password(body: ResetPasswordFinal, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.phone == body.phone).first()
+    if not user or not user.hashed_security_answer:
+        raise HTTPException(status_code=404, detail="Recovery not possible.")
+
+    if not verify_password(body.security_answer.strip().lower()[:72], user.hashed_security_answer):
+        raise HTTPException(status_code=401, detail="Incorrect security answer.")
+
+    user.hashed_password = hash_password(body.new_password[:72])
+    db.commit()
+    logger.info(f"User {user.phone} reset password via security question.")
+    return {"message": "Password reset successful."}
+
 
 
 @app.post("/api/auth/google", response_model=TokenResponse, tags=["Auth"])
@@ -884,7 +969,7 @@ def google_login(body: GoogleLoginRequest, request: Request, db: Session = Depen
     else:
         # New user — try to insert
         try:
-            user = UserModel(phone=email, name=name)
+            user = UserModel(phone=email, name=name, role=body.role)
             db.add(user)
             db.commit()
             db.refresh(user)
@@ -959,7 +1044,7 @@ def firebase_login(body: FirebaseLoginRequest, request: Request, db: Session = D
         logger.info(f"Returning Firebase user: {phone} (ID={user.id})")
     else:
         try:
-            user = UserModel(phone=phone, name=body.name or "Student")
+            user = UserModel(phone=phone, name=body.name or "Student", role=body.role)
             db.add(user)
             db.commit()
             db.refresh(user)
@@ -1083,6 +1168,11 @@ def apply_to_job(
     Prevents duplicate applications to the same job.
     """
     user_id = int(current_user["sub"])
+
+    # ─── Role check: Only students can apply for jobs ────────────────────
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if user and user.role == "employer":
+        raise HTTPException(status_code=403, detail="Employers cannot apply to jobs")
 
     # Check if job exists
     job = db.query(JobModel).filter(JobModel.id == application.job_id).first()

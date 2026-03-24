@@ -32,6 +32,7 @@ data class HomeUiState(
     // Auth state
     val isLoggedIn: Boolean = false,
     val userName: String? = null,
+    val role: String = "student",
     val showLoginSheet: Boolean = false,
     val pendingApplyJobId: Int? = null,
     // Apply state
@@ -54,7 +55,8 @@ class HomeViewModel @Inject constructor(
     init {
         _uiState.value = _uiState.value.copy(
             isLoggedIn = repository.isLoggedIn(),
-            userName = repository.getUserName()
+            userName = repository.getUserName(),
+            role = repository.getUserRole()
         )
         checkServerAndLoadJobs()
     }
@@ -70,7 +72,8 @@ class HomeViewModel @Inject constructor(
         if (wasLoggedIn != nowLoggedIn) {
             _uiState.value = _uiState.value.copy(
                 isLoggedIn = nowLoggedIn,
-                userName = repository.getUserName()
+                userName = repository.getUserName(),
+                role = repository.getUserRole()
             )
             if (nowLoggedIn) {
                 // User logged in from another tab — load applied jobs + insights
@@ -303,7 +306,11 @@ class HomeViewModel @Inject constructor(
 
     private fun applyToJob(jobId: Int) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isApplying = true, applyMessage = null)
+            _uiState.value = _uiState.value.copy(
+                isApplying = true, 
+                applyMessage = null,
+                pendingApplyJobId = jobId
+            )
 
             when (val result = repository.applyToJob(jobId)) {
                 is NetworkResult.Success -> {
@@ -343,105 +350,8 @@ class HomeViewModel @Inject constructor(
 
     // ─── LOGIN from bottom sheet ────────────────────────────────────────────
 
-    fun onLoginSubmit(phone: String, name: String?) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
 
-            when (val result = repository.login(phone, name)) {
-                is NetworkResult.Success -> {
-                    val pendingJob = _uiState.value.pendingApplyJobId
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        userName = result.data.user.name,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null,
-                        pendingApplyJobId = null
-                    )
-                    // Reload jobs + applied IDs in parallel (fast!)
-                    launch { loadJobs() }
-                    launch { loadAppliedJobIds() }
-                    // Apply to pending job if any
-                    if (pendingJob != null) {
-                        applyToJob(pendingJob)
-                    }
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> { /* no-op */ }
-            }
-        }
-    }
 
-    fun onGoogleLogin(idToken: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-
-            when (val result = repository.googleLogin(idToken)) {
-                is NetworkResult.Success -> {
-                    val pendingJob = _uiState.value.pendingApplyJobId
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        userName = result.data.user.name,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null,
-                        pendingApplyJobId = null
-                    )
-                    // Reload jobs + applied IDs in parallel (fast!)
-                    launch { loadJobs() }
-                    launch { loadAppliedJobIds() }
-                    if (pendingJob != null) {
-                        applyToJob(pendingJob)
-                    }
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> { /* no-op */ }
-            }
-        }
-    }
-
-    fun onFirebaseLogin(idToken: String, name: String? = null) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-
-            when (val result = repository.firebaseLogin(idToken, name)) {
-                is NetworkResult.Success -> {
-                    val pendingJob = _uiState.value.pendingApplyJobId
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        userName = result.data.user.name,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null,
-                        pendingApplyJobId = null
-                    )
-                    // Reload jobs + applied IDs in parallel (fast!)
-                    launch { loadJobs() }
-                    launch { loadAppliedJobIds() }
-                    if (pendingJob != null) {
-                        applyToJob(pendingJob)
-                    }
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> { /* no-op */ }
-            }
-        }
-    }
 
     fun dismissLoginSheet() {
         _uiState.value = _uiState.value.copy(
@@ -464,6 +374,7 @@ class HomeViewModel @Inject constructor(
             jobs = _uiState.value.jobs,  // Keep job list (public data)
             isLoggedIn = false,
             userName = null,
+            role = "student",
             appliedJobIds = emptySet()
         )
         // Reload jobs to clear match scores

@@ -71,8 +71,18 @@ interface JobApiService {
 
     // ─── Auth ───────────────────────────────────────────────────────────────
 
+    @POST("/api/register")
+    suspend fun register(@Body request: RegisterRequest): Response<TokenResponse>
+
     @POST("/api/login")
     suspend fun login(@Body request: LoginRequest): Response<TokenResponse>
+
+    @POST("/api/auth/reset-get-question")
+    suspend fun getResetQuestion(@Body request: ResetQuestionRequest): Response<ResetQuestionResponse>
+
+    @POST("/api/auth/reset-password")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): Response<MessageResponse>
+
 
     @POST("/api/auth/google")
     suspend fun googleLogin(@Body request: GoogleLoginRequest): Response<TokenResponse>

@@ -32,9 +32,9 @@ class Job(Base):
     status = Column(String(50), default="open")  # open | closed | paused | expired
     contact_info = Column(String(255), nullable=True)  # Phone or email for direct contact
     # ─── Phase 1: Scheduling ──────────────────────────────────────────────────
-    job_date = Column(String(10), nullable=True)   # "YYYY-MM-DD" — NULL means flexible/anytime
-    start_time = Column(String(5), nullable=True)  # "HH:MM" 24h format, e.g. "09:00"
-    end_time = Column(String(5), nullable=True)    # "HH:MM" 24h format, e.g. "14:00"
+    job_date = Column(String(50), nullable=True)   # "March 26, 2026"
+    start_time = Column(String(20), nullable=True)  # "10:00 AM"
+    end_time = Column(String(20), nullable=True)    # "06:00 PM"
     address = Column(Text, nullable=True)          # Full street address for directions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -46,6 +46,9 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     phone = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False, default="Student")
+    hashed_password = Column(String(255), nullable=True)  # Salted bcrypt hash
+    security_question = Column(String(255), nullable=True) # e.g. "My first school?"
+    hashed_security_answer = Column(String(255), nullable=True) # Also hashed for security
     skills_json = Column(Text, nullable=True)  # JSON string: '["python", "hindi"]'
     role = Column(String(50), default="student")  # student | employer
     total_earned = Column(DECIMAL(10, 2), default=0.00)  # Lifetime earnings

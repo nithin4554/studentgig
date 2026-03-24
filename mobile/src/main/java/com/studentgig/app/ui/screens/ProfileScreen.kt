@@ -75,11 +75,6 @@ fun ProfileScreen(
     // Login sheet (triggered from Profile tab when not logged in)
     if (uiState.showLoginSheet) {
         GigLoginBottomSheet(
-            isLoading = uiState.isLoggingIn,
-            errorMessage = uiState.loginError,
-            onLogin = { phone, name -> viewModel.onLoginSubmit(phone, name) },
-            onGoogleLogin = { idToken -> viewModel.onGoogleLogin(idToken) },
-            onFirebaseLogin = { idToken, name -> viewModel.onFirebaseLogin(idToken, name) },
             onDismiss = { viewModel.dismissLoginSheet() }
         )
     }

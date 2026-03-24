@@ -1,0 +1,53 @@
+﻿
+> Configure project :mobile
+WARNING: The option setting 'android.enableResourceOptimizations=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 9.0 of the Android Gradle plugin.
+WARNING: The option setting 'android.defaults.buildfeatures.buildconfig=true' is deprecated.
+The current default is 'false'.
+It will be removed in version 9.0 of the Android Gradle plugin.
+To keep using this feature, add the following to your module-level build.gradle files:
+    android.buildFeatures.buildConfig = true
+or from Android Studio, click: `Refactor` > `Migrate BuildConfig to Gradle Build Files`.
+
+> Task :mobile:preBuild UP-TO-DATE
+> Task :mobile:preDebugBuild UP-TO-DATE
+> Task :mobile:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :mobile:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :mobile:generateDebugBuildConfig UP-TO-DATE
+> Task :mobile:checkDebugAarMetadata UP-TO-DATE
+> Task :mobile:generateDebugResValues UP-TO-DATE
+> Task :mobile:processDebugGoogleServices UP-TO-DATE
+> Task :mobile:mapDebugSourceSetPaths UP-TO-DATE
+> Task :mobile:generateDebugResources UP-TO-DATE
+> Task :mobile:mergeDebugResources UP-TO-DATE
+> Task :mobile:packageDebugResources UP-TO-DATE
+> Task :mobile:parseDebugLocalResources UP-TO-DATE
+> Task :mobile:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :mobile:extractDeepLinksDebug UP-TO-DATE
+> Task :mobile:processDebugMainManifest UP-TO-DATE
+> Task :mobile:processDebugManifest UP-TO-DATE
+> Task :mobile:processDebugManifestForPackage UP-TO-DATE
+> Task :mobile:processDebugResources UP-TO-DATE
+> Task :mobile:javaPreCompileDebug UP-TO-DATE
+> Task :mobile:mergeDebugShaders UP-TO-DATE
+> Task :mobile:compileDebugShaders NO-SOURCE
+> Task :mobile:generateDebugAssets UP-TO-DATE
+> Task :mobile:mergeDebugAssets UP-TO-DATE
+> Task :mobile:compressDebugAssets UP-TO-DATE
+> Task :mobile:desugarDebugFileDependencies UP-TO-DATE
+> Task :mobile:checkDebugDuplicateClasses UP-TO-DATE
+> Task :mobile:mergeExtDexDebug UP-TO-DATE
+> Task :mobile:mergeLibDexDebug UP-TO-DATE
+> Task :mobile:mergeDebugJniLibFolders UP-TO-DATE
+> Task :mobile:mergeDebugNativeLibs UP-TO-DATE
+> Task :mobile:stripDebugDebugSymbols UP-TO-DATE
+> Task :mobile:validateSigningDebug UP-TO-DATE
+> Task :mobile:writeDebugAppMetadata UP-TO-DATE
+> Task :mobile:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :mobile:kaptGenerateStubsDebugKotlin
+w: Support for language version 2.0+ in kapt is in Alpha and must be enabled explicitly. Falling back to 1.9.
+
+> Task :mobile:kaptGenerateStubsDebugKotlin FAILED
+30 actionable tasks: 1 executed, 29 up-to-date

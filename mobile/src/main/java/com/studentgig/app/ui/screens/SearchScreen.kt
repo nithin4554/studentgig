@@ -60,16 +60,10 @@ fun SearchScreen(
 
     if (uiState.showLoginSheet) {
         GigLoginBottomSheet(
-            isLoading = uiState.isLoggingIn,
-            errorMessage = uiState.loginError,
-            onLogin = { phone, name -> viewModel.onLoginSubmit(phone, name) },
-            onGoogleLogin = { idToken -> viewModel.onGoogleLogin(idToken) },
-            onFirebaseLogin = { idToken, name -> viewModel.onFirebaseLogin(idToken, name) },
             onDismiss = { viewModel.dismissLoginSheet() }
         )
     }
 
-    // Animated search bar border glow when focused
     var isSearchFocused by remember { mutableStateOf(false) }
     val borderGlowAlpha by animateFloatAsState(
         targetValue = if (isSearchFocused) 1f else 0f,
@@ -362,7 +356,7 @@ fun SearchScreen(
                                     GigJobCard(
                                         job = job,
                                         isApplying = uiState.isApplying,
-                                        onApplyClick = { viewModel.onApplyClicked(job.id) },
+                                        onApplyClick = { onJobClick(job.id) },
                                         onCardClick = { onJobClick(job.id) },
                                         isApplied = job.id in uiState.appliedJobIds,
                                     )

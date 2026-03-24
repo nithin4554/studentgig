@@ -43,6 +43,7 @@ import com.studentgig.app.ui.theme.GigColors
 import com.studentgig.app.ui.theme.GigGlow
 import com.studentgig.app.ui.theme.GigGradients
 import com.studentgig.app.ui.viewmodel.ApplicationsViewModel
+import com.studentgig.app.ui.viewmodel.HomeViewModel
 import com.studentgig.app.ui.viewmodel.NotificationsViewModel
 
 // ─── Routes ─────────────────────────────────────────────────────────────────────
@@ -70,10 +71,16 @@ data class BottomNavItem(
     val unselectedIcon: ImageVector
 )
 
-private val bottomNavItems = listOf(
+private val studentNavItems = listOf(
     BottomNavItem(Routes.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
     BottomNavItem(Routes.SEARCH, "Search", Icons.Filled.Search, Icons.Outlined.Search),
     BottomNavItem(Routes.APPLICATIONS, "Activity", Icons.Filled.WorkHistory, Icons.Outlined.WorkHistory),
+    BottomNavItem(Routes.PROFILE, "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
+)
+
+private val employerNavItems = listOf(
+    BottomNavItem(Routes.EMPLOYER_DASHBOARD, "Dashboard", Icons.Filled.Home, Icons.Outlined.Home),
+    BottomNavItem(Routes.POST_JOB, "Post Job", Icons.Filled.AddBox, Icons.Outlined.AddBox),
     BottomNavItem(Routes.PROFILE, "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
 )
 
@@ -85,13 +92,30 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    val homeViewModel: HomeViewModel = hiltViewModel()
+    val homeUiState by homeViewModel.uiState.collectAsState()
+    val isEmployer = homeUiState.role == "employer"
+    val navItems = if (isEmployer) employerNavItems else studentNavItems
+
     // Handle deep link startup
     LaunchedEffect(deepLinkJobId) {
-        if (deepLinkJobId != null) {
-            navController.navigate(Routes.jobDetail(deepLinkJobId)) {
+        deepLinkJobId?.let { id ->
+            navController.navigate(Routes.jobDetail(id)) {
                 popUpTo(Routes.HOME) { saveState = true }
             }
         }
+    }
+
+    // Redirect when role changes (e.g. after login)
+    var prevRole by remember { mutableStateOf(homeUiState.role) }
+    LaunchedEffect(homeUiState.role) {
+        if (prevRole != homeUiState.role) {
+            val route = if (isEmployer) Routes.EMPLOYER_DASHBOARD else Routes.HOME
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+            }
+        }
+        prevRole = homeUiState.role
     }
 
     // Application badge count
@@ -105,7 +129,7 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
     LaunchedEffect(currentRoute) { notifViewModel.fetchUnreadCount() }
 
     // Hide bottom bar on detail/splash screens
-    val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+    val showBottomBar = currentRoute in navItems.map { it.route }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var showFabTooltip by remember { mutableStateOf(false) }
@@ -120,7 +144,7 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
     }
 
     var backPressedOnce by remember { mutableStateOf(false) }
-    val isOnMainTab = currentRoute in bottomNavItems.map { it.route }
+    val isOnMainTab = currentRoute in navItems.map { it.route }
 
     BackHandler(enabled = isOnMainTab) {
         if (backPressedOnce) {
@@ -141,7 +165,7 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
     Scaffold(
         containerColor = GigColors.Background,
         floatingActionButton = {
-            if (showBottomBar) {
+            if (showBottomBar && isEmployer) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     ExtendedFloatingActionButton(
                         onClick = {
@@ -167,7 +191,7 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
         bottomBar = {
             if (showBottomBar) {
                 PremiumBottomBar(
-                    items = bottomNavItems,
+                    items = navItems,
                     currentRoute = currentRoute,
                     pendingCount = pendingCount,
                     onItemClick = { route ->
@@ -193,7 +217,8 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
             composable(Routes.SPLASH) {
                 SplashScreen(
                     onSplashComplete = {
-                        navController.navigate(Routes.HOME) {
+                        val route = if (isEmployer) Routes.EMPLOYER_DASHBOARD else Routes.HOME
+                        navController.navigate(route) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
                         }
                     }
@@ -201,9 +226,20 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
             }
             composable(Routes.HOME) {
                 HomeScreen(
+                    viewModel = homeViewModel,
                     onJobClick = { jobId -> navController.navigate(Routes.jobDetail(jobId)) },
                     onNotificationsClick = { navController.navigate(Routes.NOTIFICATIONS) },
-                    unreadNotificationCount = notifState.unreadCount
+                    unreadNotificationCount = notifState.unreadCount,
+                    onLoginSuccess = {
+                        // Refresh HomeViewModel's role state immediately after login
+                        homeViewModel.refreshAuthState()
+                        homeViewModel.dismissLoginSheet()
+                    }
+                )
+            }
+            composable(Routes.EMPLOYER_DASHBOARD) {
+                com.studentgig.app.ui.screens.EmployerDashboardScreen(
+                    onJobClick = { jobId -> navController.navigate(Routes.jobDetail(jobId)) }
                 )
             }
             composable(Routes.SEARCH) {
@@ -214,6 +250,7 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
             }
             composable(Routes.PROFILE) {
                 ProfileScreen(onLogout = {
+                    homeViewModel.logout()
                     navController.navigate(Routes.HOME) {
                         popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                     }
@@ -226,13 +263,22 @@ fun StudentGigNavHost(deepLinkJobId: Int? = null) {
                 exitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
             ) { backStack ->
                 val jobId = backStack.arguments?.getInt("jobId") ?: 0
-                JobDetailScreen(jobId = jobId, onBack = { navController.popBackStack() })
+                JobDetailScreen(
+                    jobId = jobId,
+                    onBack = { navController.popBackStack() },
+                    onLoginSuccess = {
+                        homeViewModel.refreshAuthState()
+                        homeViewModel.dismissLoginSheet()
+                    }
+                )
             }
             composable(Routes.POST_JOB) {
                 PostJobScreen(
                     onBack = { navController.popBackStack() },
                     onJobPosted = {
-                        navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } }
+                        navController.navigate(if (isEmployer) Routes.EMPLOYER_DASHBOARD else Routes.HOME) { 
+                            popUpTo(if (isEmployer) Routes.EMPLOYER_DASHBOARD else Routes.HOME) { inclusive = true } 
+                        }
                     }
                 )
             }

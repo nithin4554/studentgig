@@ -143,84 +143,103 @@ class JobResponse(BaseModel):
 # ─── User Schemas (Phone-based Auth) ────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    """POST /api/login — phone-based (OTP-ready, mocked for MVP)."""
+    """Returning user login (Phone + Password)."""
     phone: str = Field(min_length=10, max_length=15)
-    name: Optional[str] = Field(default="Student", min_length=2, max_length=255)
+    password: str = Field(min_length=6, max_length=50)
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        # Remove common separators
         cleaned = re.sub(r'[\s\-\(\)\+]', '', v)
         if not cleaned.isdigit():
             raise ValueError("Phone number must contain only digits")
         
-        # ─── Junk Pattern Detection ───
-        # 1. All same digits (e.g. 0000000000)
-        if len(set(cleaned)) == 1:
-            raise ValueError("Invalid phone number: cannot be all same digits")
-        
-        # 2. Sequential digits (e.g. 1234567890 or 9876543210)
-        sequential = "01234567890123456789"
-        reverse_sequential = "98765432109876543210"
-        if cleaned in sequential or cleaned in reverse_sequential:
-            raise ValueError("Invalid phone number: suspicious sequential pattern")
-
-        if len(cleaned) < 10:
-            raise ValueError("Phone number must be at least 10 digits (e.g. 9876543210)")
-        if len(cleaned) > 12: # Allow for optional country code
-            raise ValueError("Phone number too long")
+        # Professional validation: Prevent sequential or repetitive "junk" numbers
+        if len(cleaned) == 10:
+            if len(set(cleaned)) <= 2: # e.g. 9999999999 or 9898989898
+                raise ValueError("Please enter a valid phone number (no repetitive digits)")
+            if cleaned in "01234567890" or cleaned in "9876543210":
+                raise ValueError("Sequential phone numbers are not allowed")
+                
         return cleaned
+
+class DemoLoginRequest(BaseModel):
+    """Demo login (Phone + Name) — no password required for quick testing."""
+    phone: str = Field(min_length=10, max_length=15)
+    name: str = Field(min_length=2, max_length=100)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        cleaned = re.sub(r'[\s\-\(\)\+]', '', v)
+        if not cleaned.isdigit():
+            raise ValueError("Phone number must contain only digits")
+        return cleaned
+
+class RegisterRequest(BaseModel):
+    """New user sign-up (Phone + Name + Password + Recovery Q/A)."""
+    phone: str = Field(min_length=10, max_length=15)
+    name: str = Field(min_length=2, max_length=100)
+    password: str = Field(min_length=6, max_length=50)
+    security_question: str = Field(min_length=5, max_length=255)
+    security_answer: str = Field(min_length=2, max_length=255)
+    role: str = "student"
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, v):
-        if not v or v == "Student":
-            return v
-        cleaned = v.strip()
+        # Ensure no numbers or special symbols in name
+        if any(char.isdigit() for char in v):
+            raise ValueError("Name cannot contain numbers")
         
-        # ─── Junk Pattern Detection ───
-        # 1. Reject placeholder strings
-        placeholders = ["admin", "test", "null", "none", "anonymous", "user", "unknown"]
-        if cleaned.lower() in placeholders:
-            raise ValueError(f"'{cleaned}' is not a professional name")
-        
-        # 2. Reject excessively repeated characters (e.g. "aaaaa")
-        if re.search(r'(.)\1{3,}', cleaned):
-            raise ValueError("Name contains too many repeating characters")
+        # Check for repetitive characters e.g. "aaaa"
+        if len(v) >= 4 and len(set(v.lower().replace(" ", ""))) <= 1:
+            raise ValueError("Repetitive characters in name is not allowed")
 
-        # 3. Reject keyboard patterns (partial)
-        if cleaned.lower() in "qwertyuiopasdfghjklzxcvbnm":
-            raise ValueError("Invalid name pattern detected")
+        # Basic dummy list
+        dummies = ["abc", "xyz", "test", "demo", "asdf", "qwerty"]
+        if v.lower().strip() in dummies:
+            raise ValueError("Common dummy names are not allowed")
 
-        if re.search(r'\d', cleaned):
-            raise ValueError("Professional names should not contain numbers")
-        if not re.match(r'^[a-zA-Z\s\.]+$', cleaned):
-            raise ValueError("Name can only contain letters, spaces, and dots")
-        if len(cleaned) < 2:
-            raise ValueError("Name is too short (min 2 characters)")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        cleaned = re.sub(r'[\s\-\(\)\+]', '', v)
+        if not cleaned.isdigit():
+            return v # fallback to let Pydantic handle min_length error
+            
+        # Professional validation: Prevent sequential or repetitive "junk" numbers
+        if len(cleaned) == 10:
+            if len(set(cleaned)) <= 2:
+                raise ValueError("Please enter a valid phone number (no repetitive digits)")
+            if cleaned in "01234567890" or cleaned in "9876543210":
+                raise ValueError("Sequential phone numbers are not allowed")
+
         return cleaned
 
-    @field_validator("name")
-    @classmethod
-    def prevent_phone_in_name(cls, v, info: ValidationInfo):
-        if not v: return v
-        # Accessing other fields in v2 via info.data
-        phone = info.data.get('phone')
-        cleaned_name = v.strip()
-        if phone and cleaned_name == phone.strip():
-            raise ValueError("Name cannot be the same as your phone number")
-        return cleaned_name
+class ResetPasswordCheck(BaseModel):
+    """Step 1: Get security question by phone."""
+    phone: str
+
+class ResetPasswordFinal(BaseModel):
+    """Step 2: Answer the question and set new password."""
+    phone: str
+    security_answer: str
+    new_password: str = Field(min_length=6, max_length=50)
 
 
 class GoogleLoginRequest(BaseModel):
     """POST /api/auth/google — expects a Google ID token."""
     idToken: str
+    role: str = "student"
 
 class FirebaseLoginRequest(BaseModel):
     """POST /api/auth/firebase — expects a Firebase ID token and optional name."""
     idToken: str
     name: Optional[str] = "Student"
+    role: str = "student"
 
 
 class UserResponse(BaseModel):

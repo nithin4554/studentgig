@@ -23,7 +23,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"http://10.76.125.154:8000/\"")
+            // For XAMPP PHP Backend (connect Phone/Emulator to PC via Localhost)
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2/StudentGig/php_backend/\"")
         }
         release {
             isMinifyEnabled = true

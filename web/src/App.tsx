@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Sparkles, ChevronRight, Briefcase, BrainCircuit, Target, Code,
   ArrowRight, Search, MapPin, Filter, Command, CheckCircle2, User, LogOut,
   Bell, X, Clock, AlertCircle, Info, UserPlus, Rocket,
-  Twitter, Linkedin, Heart, Mail
+  Twitter, Linkedin, Heart, Mail,
+  Eye, EyeOff, Lock, Shield, Key, Smartphone, GraduationCap, Building2
 } from 'lucide-react';
 
 // --- Relative time helper ---
@@ -24,7 +25,7 @@ function timeAgo(dateStr: string | null | undefined): string {
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
-import { GoogleLogin } from '@react-oauth/google';
+
 
 // --- Global API URL --- (use env var in production, fallback to localhost for dev)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -97,8 +98,7 @@ interface UserData {
 interface AuthContextType {
   token: string | null;
   user: UserData | null;
-  login: (phone: string, name: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
+  setAuthState: (token: string, user: UserData) => void;
   logout: () => void;
   isLoginModalOpen: boolean;
   setLoginModalOpen: (open: boolean) => void;
@@ -107,8 +107,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   token: null,
   user: null,
-  login: async () => { },
-  loginWithGoogle: async () => { },
+  setAuthState: () => { },
   logout: () => { },
   isLoginModalOpen: false,
   setLoginModalOpen: () => { },
@@ -123,45 +122,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
 
-  const login = async (phone: string, name: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, name }),
-      });
-      if (!res.ok) throw new Error('Login failed');
-      const data = await res.json();
-      setToken(data.access_token);
-      setUser(data.user);
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-  };
-
-  const loginWithGoogle = async (idToken: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Google Login failed');
-      }
-      const data = await res.json();
-      setToken(data.access_token);
-      setUser(data.user);
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
+  const setAuthState = (newToken: string, newUser: UserData) => {
+    setToken(newToken);
+    setUser(newUser);
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(newUser));
   };
 
   const logout = () => {
@@ -172,7 +137,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, loginWithGoogle, logout, isLoginModalOpen, setLoginModalOpen }}>
+    <AuthContext.Provider value={{ token, user, setAuthState, logout, isLoginModalOpen, setLoginModalOpen }}>
       {children}
     </AuthContext.Provider>
   );
@@ -180,6 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 // --- MAIN APP COMPONENT ---
 function AppContent() {
+  const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -194,7 +160,7 @@ function AppContent() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/employers" element={<EmployersPage />} />
+              <Route path="/employers" element={user?.role === 'student' ? <Navigate to="/jobs" /> : <EmployersPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Routes>
           </AnimatePresence>
@@ -306,8 +272,8 @@ function Navbar() {
 
           <nav style={{ display: 'flex', gap: '6px', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '6px', borderRadius: '99px', border: '1px solid var(--border)' }}>
             <NavLink to="/" current={location.pathname === '/'}>Overview</NavLink>
-            <NavLink to="/jobs" current={location.pathname === '/jobs'}>Find Jobs</NavLink>
-            <NavLink to="/employers" current={location.pathname === '/employers'}>For Employers</NavLink>
+            {(!user || user.role === 'student') && <NavLink to="/jobs" current={location.pathname === '/jobs'}>Find Jobs</NavLink>}
+            {(!user || user.role === 'employer') && <NavLink to="/employers" current={location.pathname === '/employers'}>For Employers</NavLink>}
           </nav>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -461,6 +427,7 @@ function NavLink({ to, current, children }: { to: string, current: boolean, chil
 
 // --- LANDING PAGE ---
 function LandingPage() {
+  const { user } = useAuth();
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -506,8 +473,8 @@ function LandingPage() {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
             style={{ display: 'flex', gap: '16px', alignItems: 'center' }}
           >
-            <Link to="/jobs" className="btn btn-primary" style={{ padding: '14px 28px', fontSize: '15px' }}>
-              Explore Gigs <ArrowRight size={16} />
+            <Link to={user?.role === 'employer' ? "/employers" : "/jobs"} className="btn btn-primary" style={{ padding: '14px 28px', fontSize: '15px' }}>
+              {user?.role === 'employer' ? "Post a Job" : "Explore Gigs"} <ArrowRight size={16} />
             </Link>
             <button onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} className="mono" style={{ color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'transparent', border: 'none' }}>
               <Command size={14} /> K
@@ -674,6 +641,12 @@ function BentoCard({ children, colSpan = 1, delay = 0 }: any) {
 // --- FUNCTIONAL JOBS PAGE ---
 function JobsPage() {
   const { token, user, setLoginModalOpen } = useAuth();
+
+  // Role Protection: Employers should not see the student jobs feed.
+  if (user?.role === 'employer') {
+    return <Navigate to="/employers" />;
+  }
+
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -798,6 +771,10 @@ function JobsPage() {
   const handleApply = async () => {
     if (!token || !user) {
       setLoginModalOpen(true);
+      return;
+    }
+    if (user.role === 'employer') {
+      toast('Employers cannot apply for gigs. Please use a student account to work.', 'warning');
       return;
     }
     setIsApplying(true);
@@ -1344,6 +1321,10 @@ function EmployersPage() {
     e.preventDefault();
     if (!user || !token) {
       setLoginModalOpen(true);
+      return;
+    }
+    if (user.role === 'student') {
+      toast('Only employers can post jobs. Please use an employer account.', 'warning');
       return;
     }
     setLoading(true);
@@ -1957,103 +1938,371 @@ function ProfilePage() {
   );
 }
 
-// --- LOGIN MODAL COMPONENT ---
+// --- LOGIN MODAL COMPONENT (Premium) ---
 function LoginModal() {
-  const { isLoginModalOpen, setLoginModalOpen, login, loginWithGoogle } = useAuth();
+  const { isLoginModalOpen, setLoginModalOpen, setAuthState } = useAuth();
   const { toast } = useToast();
+
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [secQuestion, setSecQuestion] = useState('');
+  const [secAnswer, setSecAnswer] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [role, setRole] = useState<'student' | 'employer'>('student');
   const [loading, setLoading] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const markTouched = (field: string) => setTouched(prev => ({ ...prev, [field]: true }));
+
+  const switchMode = (newMode: 'login' | 'register' | 'forgot') => {
+    setMode(newMode);
+    setTouched({});
+    setShowPassword(false);
+    setShowNewPassword(false);
+    if (newMode === 'forgot') setForgotStep(1);
+  };
+
+  // --- Validation ---
+  const validateName = (n: string): string => {
+    const trimmed = n.trim();
+    if (!trimmed) return 'Name is required';
+    if (trimmed.length < 3) return 'Name must be at least 3 characters';
+    const dummies = ["abc", "xyz", "test", "demo", "asdf", "qwerty", "admin", "user", "name", "hello"];
+    if (dummies.includes(trimmed.toLowerCase())) return 'Please enter your real name';
+    if (trimmed.length >= 4 && new Set(trimmed.toLowerCase().replace(/ /g, '')).size <= 1) return 'Name cannot be all the same character';
+    if (!/^[a-zA-Z ]+$/.test(trimmed)) return 'Only letters and spaces allowed';
+    return '';
+  };
+
+  const validatePhone = (p: string): string => {
+    if (!p) return 'Phone number is required';
+    if (p.length < 10) return `${10 - p.length} more digit${10 - p.length > 1 ? 's' : ''} needed`;
+    if (!/^[6-9]/.test(p)) return 'Indian mobile numbers start with 6, 7, 8, or 9';
+    if (new Set(p).size <= 2) return 'Too many repeated digits';
+    if ('0123456789'.includes(p) || '9876543210'.includes(p)) return 'Sequential patterns are not allowed';
+    return '';
+  };
+
+  const validatePassword = (pw: string, isReg: boolean): string => {
+    if (!pw) return 'Password is required';
+    if (isReg && pw.length < 6) return `${6 - pw.length} more character${6 - pw.length > 1 ? 's' : ''} needed`;
+    if (!isReg && pw.length < 4) return 'Password must be at least 4 characters';
+    return '';
+  };
+
+  const validateSecQ = (q: string): string => {
+    if (!q.trim()) return 'Security question is required';
+    if (q.trim().length < 5) return 'Must be at least 5 characters';
+    return '';
+  };
+
+  const validateSecA = (a: string): string => {
+    if (!a.trim()) return 'Answer is required';
+    if (a.trim().length < 3) return 'Must be at least 3 characters';
+    return '';
+  };
+
+  const getStrength = (pw: string) => {
+    if (pw.length < 6) return { level: 'weak' as const, label: 'Too short' };
+    const has = { letters: /[a-zA-Z]/.test(pw), nums: /[0-9]/.test(pw), special: /[^a-zA-Z0-9]/.test(pw) };
+    if (pw.length >= 8 && has.letters && has.nums && has.special) return { level: 'strong' as const, label: 'Strong' };
+    if (has.letters && has.nums) return { level: 'medium' as const, label: 'Medium' };
+    return { level: 'weak' as const, label: 'Weak' };
+  };
+
+  const nameErr = validateName(name);
+  const phoneErr = validatePhone(phone);
+  const pwErr = validatePassword(password, mode === 'register');
+  const sqErr = validateSecQ(secQuestion);
+  const saErr = validateSecA(secAnswer);
+  const pwStrength = getStrength(password);
+
+  const fieldCls = (err: string, field: string, val: string) => {
+    if (!touched[field] || !val) return 'input-field';
+    return `input-field ${err ? 'field-error' : 'field-success'}`;
+  };
+
+  const feedback = (err: string, field: string, val: string) => {
+    if (!touched[field] || !val) return <div className="field-success-text" style={{ visibility: 'hidden' }}><CheckCircle2 size={12} />_</div>;
+    if (err) return <div className="field-error-text"><AlertCircle size={12} />{err}</div>;
+    return <div className="field-success-text"><CheckCircle2 size={12} />Looks good!</div>;
+  };
 
   if (!isLoginModalOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // --- Handlers ---
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTouched({ phone: true, password: true });
+    if (phoneErr || pwErr) { toast('Please fix the errors above.', 'error'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
+      setAuthState(data.access_token, data.user);
+      setLoginModalOpen(false);
+      toast('Welcome back! 🎉', 'success');
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTouched({ name: true, phone: true, password: true, secQuestion: true, secAnswer: true });
+    if (nameErr || phoneErr || pwErr || sqErr || saErr) { toast('Please fix the highlighted errors.', 'error'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, name, password, security_question: secQuestion, security_answer: secAnswer, role })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Registration failed');
+      setAuthState(data.access_token, data.user);
+      setLoginModalOpen(false);
+      toast('Account created! 🎉', 'success');
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const handleForgotStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(phone, name || 'Student');
-      setLoginModalOpen(false);
-      toast('Welcome back! 🎉', 'success');
-    } catch (err) {
-      toast('Login failed. Please check your credentials.', 'error');
-    } finally {
-      setLoading(false);
-    }
+      const res = await fetch(`${API_URL}/api/auth/reset-get-question`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Account not found');
+      setSecQuestion(data.question);
+      setForgotStep(2);
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
   };
 
+  const handleForgotStep2 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, security_answer: secAnswer, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Reset failed');
+      toast('Password reset! Please log in.', 'success');
+      switchMode('login');
+      setPassword('');
+    } catch (err: any) { toast(err.message, 'error'); }
+    finally { setLoading(false); }
+  };
+
+
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        onClick={() => setLoginModalOpen(false)}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      />
+    <div className="auth-modal-backdrop" onClick={() => setLoginModalOpen(false)}>
       <motion.div
+        key={mode}
         initial={{ scale: 0.95, y: -20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
-        className="spotlight-card"
-        style={{ position: 'relative', width: '90%', maxWidth: '400px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border)', borderRadius: '24px', padding: '32px' }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+        className="auth-modal"
+        onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Login / Register</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>Enter your info to access StudentGig instantly.</p>
+        {/* Close */}
+        <button onClick={() => setLoginModalOpen(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '10px', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', transition: 'all 0.2s' }}>
+          <X size={16} />
+        </button>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <input
-            className="input-field"
-            placeholder="Your Name (if new)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="input-field"
-            type="tel"
-            required
-            placeholder="Phone Number (e.g. 1234567890)"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ padding: '16px', fontSize: '16px', width: '100%', marginTop: '8px', opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? 'Working...' : 'Continue with Phone'}
-          </button>
-        </form>
-
-        <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0' }}>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-          <span style={{ margin: '0 16px', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' }}>OR</span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        {/* Header Icon */}
+        <div className={`auth-header-icon ${mode === 'login' ? 'login-icon' : mode === 'register' ? 'register-icon' : 'forgot-icon'}`}>
+          {mode === 'login' && <Zap color="var(--primary)" size={28} />}
+          {mode === 'register' && <UserPlus color="#10B981" size={28} />}
+          {mode === 'forgot' && <Lock color="var(--accent)" size={28} />}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <GoogleLogin
-            onSuccess={async (credentialResponse) => {
-              if (credentialResponse.credential) {
-                setLoading(true);
-                try {
-                  await loginWithGoogle(credentialResponse.credential);
-                  setLoginModalOpen(false);
-                  toast('Signed in with Google! 🎉', 'success');
-                } catch (err) {
-                  toast('Google sign-in failed. Please try again.', 'error');
-                } finally {
-                  setLoading(false);
-                }
-              }
-            }}
-            onError={() => {
-              console.log('Login Failed');
-              toast('Google login widget failed to load.', 'error');
-            }}
-            theme="outline"
-            size="large"
-            text="continue_with"
-            shape="rectangular"
-            width="250"
-          />
-        </div>
+        <h2 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-0.03em', marginBottom: '6px' }}>
+          {mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create Account' : 'Reset Password'}
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '28px', fontSize: '14px', lineHeight: 1.5 }}>
+          {mode === 'login' ? 'Sign in to access your StudentGig dashboard.' : mode === 'register' ? 'Join thousands of students earning on their schedule.' : 'Recover your account using your security question.'}
+        </p>
+
+        {/* ========= LOGIN ========= */}
+        {mode === 'login' && (
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Smartphone size={16} className="auth-input-icon" />
+                <input className={fieldCls(phoneErr, 'phone', phone)} type="tel" required placeholder="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} onBlur={() => markTouched('phone')} autoFocus style={{ paddingLeft: '44px' }} />
+              </div>
+              {feedback(phoneErr, 'phone', phone)}
+            </div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Lock size={16} className="auth-input-icon" />
+                <input className={fieldCls(pwErr, 'password', password)} type={showPassword ? 'text' : 'password'} required placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => markTouched('password')} style={{ paddingLeft: '44px', paddingRight: '44px' }} />
+                <button type="button" className="auth-password-toggle" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {feedback(pwErr, 'password', password)}
+            </div>
+
+            <div style={{ textAlign: 'right', marginBottom: '8px' }}>
+              <button type="button" onClick={() => switchMode('forgot')} style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Forgot Password?</button>
+            </div>
+
+            <button type="submit" className="auth-submit-btn login-btn" disabled={loading}>
+              {loading ? <><div className="auth-spinner" /> Signing in...</> : <><Lock size={16} /> Sign In</>}
+            </button>
+
+
+
+            <div className="auth-mode-toggle">
+              Don't have an account? <button type="button" onClick={() => switchMode('register')}>Create one</button>
+            </div>
+          </form>
+        )}
+
+        {/* ========= REGISTER ========= */}
+        {mode === 'register' && (
+          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {/* Role Cards */}
+            <div className="auth-role-selector">
+              <div className={`auth-role-card ${role === 'student' ? 'active' : ''}`} onClick={() => setRole('student')}>
+                <div className="role-icon"><GraduationCap size={18} color={role === 'student' ? 'var(--primary)' : 'var(--text-muted)'} /></div>
+                <span className="role-title">Student</span>
+                <span className="role-desc">Find Gigs</span>
+              </div>
+              <div className={`auth-role-card ${role === 'employer' ? 'active' : ''}`} onClick={() => setRole('employer')}>
+                <div className="role-icon"><Building2 size={18} color={role === 'employer' ? 'var(--primary)' : 'var(--text-muted)'} /></div>
+                <span className="role-title">Employer</span>
+                <span className="role-desc">Hire Talent</span>
+              </div>
+            </div>
+
+            <div className="auth-section-label"><User size={12} /> Identity</div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <User size={16} className="auth-input-icon" />
+                <input className={fieldCls(nameErr, 'name', name)} required placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z ]/g, '').slice(0, 50))} onBlur={() => markTouched('name')} autoFocus style={{ paddingLeft: '44px' }} />
+              </div>
+              {feedback(nameErr, 'name', name)}
+            </div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Smartphone size={16} className="auth-input-icon" />
+                <input className={fieldCls(phoneErr, 'phone', phone)} type="tel" required placeholder="10-Digit Phone Number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} onBlur={() => markTouched('phone')} style={{ paddingLeft: '44px' }} />
+              </div>
+              {feedback(phoneErr, 'phone', phone)}
+            </div>
+
+            <div className="auth-section-label"><Shield size={12} /> Security</div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Lock size={16} className="auth-input-icon" />
+                <input className={fieldCls(pwErr, 'password', password)} type={showPassword ? 'text' : 'password'} required placeholder="Create Password (min 6 chars)" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => markTouched('password')} minLength={6} style={{ paddingLeft: '44px', paddingRight: '44px' }} />
+                <button type="button" className="auth-password-toggle" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {password.length > 0 && (
+                <>
+                  <div className="password-strength-bar"><div className={`password-strength-fill str-${pwStrength.level}`} /></div>
+                  <div className={`password-strength-label str-${pwStrength.level}`}>{pwStrength.label}</div>
+                </>
+              )}
+              {feedback(pwErr, 'password', password)}
+            </div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Shield size={16} className="auth-input-icon" />
+                <input className={fieldCls(sqErr, 'secQuestion', secQuestion)} required placeholder="Security Question (e.g. Your birthplace?)" value={secQuestion} onChange={(e) => setSecQuestion(e.target.value)} onBlur={() => markTouched('secQuestion')} style={{ paddingLeft: '44px' }} />
+              </div>
+              {feedback(sqErr, 'secQuestion', secQuestion)}
+            </div>
+
+            <div className="auth-field-group">
+              <div className="auth-input-wrapper">
+                <Key size={16} className="auth-input-icon" />
+                <input className={fieldCls(saErr, 'secAnswer', secAnswer)} required placeholder="Secret Answer" value={secAnswer} onChange={(e) => setSecAnswer(e.target.value.slice(0, 50))} onBlur={() => markTouched('secAnswer')} style={{ paddingLeft: '44px' }} />
+              </div>
+              {feedback(saErr, 'secAnswer', secAnswer)}
+            </div>
+
+            <button type="submit" className="auth-submit-btn register-btn" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? <><div className="auth-spinner" /> Creating account...</> : <><Rocket size={16} /> Create Account</>}
+            </button>
+
+
+
+            <div className="auth-mode-toggle">
+              Already have an account? <button type="button" onClick={() => switchMode('login')}>Sign in</button>
+            </div>
+          </form>
+        )}
+
+        {/* ========= FORGOT PASSWORD ========= */}
+        {mode === 'forgot' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {forgotStep === 1 ? (
+              <form onSubmit={handleForgotStep1} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="auth-input-wrapper">
+                  <Smartphone size={16} className="auth-input-icon" />
+                  <input className="input-field" type="tel" required placeholder="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} autoFocus style={{ paddingLeft: '44px' }} />
+                </div>
+                <button type="submit" className="auth-submit-btn login-btn" disabled={loading}>
+                  {loading ? <><div className="auth-spinner" /> Finding account...</> : <>Next <ChevronRight size={16} /></>}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotStep2} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ background: 'rgba(139, 92, 246, 0.06)', padding: '14px 16px', borderRadius: '12px', fontSize: '14px', color: 'var(--text-primary)', border: '1px solid rgba(139, 92, 246, 0.15)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Shield size={16} color="var(--primary)" />
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Security Question</span>
+                    <p style={{ fontWeight: 600, marginTop: '2px' }}>{secQuestion}</p>
+                  </div>
+                </div>
+                <div className="auth-input-wrapper">
+                  <Key size={16} className="auth-input-icon" />
+                  <input className="input-field" required placeholder="Your Answer" value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)} autoFocus style={{ paddingLeft: '44px' }} />
+                </div>
+                <div className="auth-input-wrapper">
+                  <Lock size={16} className="auth-input-icon" />
+                  <input className="input-field" type={showNewPassword ? 'text' : 'password'} required placeholder="New Password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ paddingLeft: '44px', paddingRight: '44px' }} />
+                  <button type="button" className="auth-password-toggle" onClick={() => setShowNewPassword(!showNewPassword)}>
+                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <button type="submit" className="auth-submit-btn login-btn" disabled={loading}>
+                  {loading ? <><div className="auth-spinner" /> Resetting...</> : <><Lock size={16} /> Reset Password</>}
+                </button>
+              </form>
+            )}
+            <div style={{ textAlign: 'center' }}>
+              <button type="button" onClick={() => switchMode('login')} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', margin: '0 auto' }}>
+                <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /> Back to Login
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

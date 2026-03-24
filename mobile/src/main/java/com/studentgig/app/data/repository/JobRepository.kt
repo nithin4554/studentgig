@@ -215,15 +215,42 @@ class JobRepository @Inject constructor(
     fun getUserName(): String? = tokenManager.getUserName()
     fun getUserPhone(): String? = tokenManager.getUserPhone()
     fun getUserId(): Int = tokenManager.getUserId()
+    fun getUserRole(): String = tokenManager.getUserRole()
 
-    suspend fun login(phone: String, name: String? = null): NetworkResult<TokenResponse> {
+    suspend fun register(phone: String, name: String, password: String, secQuestion: String, secAnswer: String, role: String): NetworkResult<TokenResponse> {
         return try {
-            val response = apiService.login(LoginRequest(phone, name ?: "Student"))
+            val response = apiService.register(RegisterRequest(phone, name, password, secQuestion, secAnswer, role))
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                tokenManager.saveToken(body.accessToken)
+                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone, body.user.role)
+                if (body.user.skillsJson != null) {
+                    tokenManager.saveSkills(body.user.skillsJson)
+                }
+                NetworkResult.Success(body)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                val detail = try {
+                    val json = com.google.gson.JsonParser.parseString(errorBody).asJsonObject
+                    json.get("detail")?.asString ?: "Registration failed"
+                } catch (_: Exception) { "Registration failed (${response.code()})" }
+                NetworkResult.Error(detail, response.code())
+            }
+        } catch (e: java.net.ConnectException) {
+            NetworkResult.Error("Server Offline — Cannot register")
+        } catch (e: Exception) {
+            NetworkResult.Error("Registration error: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun login(phone: String, password: String): NetworkResult<TokenResponse> {
+        return try {
+            val response = apiService.login(LoginRequest(phone, password))
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 // Save token and user info
                 tokenManager.saveToken(body.accessToken)
-                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone)
+                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone, body.user.role)
                 if (body.user.skillsJson != null) {
                     tokenManager.saveSkills(body.user.skillsJson)
                 }
@@ -243,13 +270,53 @@ class JobRepository @Inject constructor(
         }
     }
 
-    suspend fun googleLogin(idToken: String): NetworkResult<TokenResponse> {
+    suspend fun getResetQuestion(phone: String): NetworkResult<ResetQuestionResponse> {
         return try {
-            val response = apiService.googleLogin(GoogleLoginRequest(idToken))
+            val response = apiService.getResetQuestion(ResetQuestionRequest(phone))
+            if (response.isSuccessful && response.body() != null) {
+                NetworkResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                val detail = try {
+                    val json = com.google.gson.JsonParser.parseString(errorBody).asJsonObject
+                    json.get("detail")?.asString ?: "Failed to find account"
+                } catch (_: Exception) { "Failed (${response.code()})" }
+                NetworkResult.Error(detail, response.code())
+            }
+        } catch (e: java.net.ConnectException) {
+            NetworkResult.Error("Server Offline")
+        } catch (e: Exception) {
+            NetworkResult.Error("Network error: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun resetPassword(phone: String, secAnswer: String, newPassword: String): NetworkResult<MessageResponse> {
+        return try {
+            val response = apiService.resetPassword(ResetPasswordRequest(phone, secAnswer, newPassword))
+            if (response.isSuccessful && response.body() != null) {
+                NetworkResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                val detail = try {
+                    val json = com.google.gson.JsonParser.parseString(errorBody).asJsonObject
+                    json.get("detail")?.asString ?: "Failed to reset password"
+                } catch (_: Exception) { "Failed (${response.code()})" }
+                NetworkResult.Error(detail, response.code())
+            }
+        } catch (e: java.net.ConnectException) {
+            NetworkResult.Error("Server Offline")
+        } catch (e: Exception) {
+            NetworkResult.Error("Network error: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun googleLogin(idToken: String, role: String): NetworkResult<TokenResponse> {
+        return try {
+            val response = apiService.googleLogin(GoogleLoginRequest(idToken, role))
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 tokenManager.saveToken(body.accessToken)
-                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone)
+                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone, body.user.role)
                 if (body.user.skillsJson != null) {
                     tokenManager.saveSkills(body.user.skillsJson)
                 }
@@ -270,13 +337,13 @@ class JobRepository @Inject constructor(
         }
     }
 
-    suspend fun firebaseLogin(idToken: String, name: String? = null): NetworkResult<TokenResponse> {
+    suspend fun firebaseLogin(idToken: String, name: String? = null, role: String): NetworkResult<TokenResponse> {
         return try {
-            val response = apiService.firebaseLogin(FirebaseLoginRequest(idToken, name))
+            val response = apiService.firebaseLogin(FirebaseLoginRequest(idToken, name, role))
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 tokenManager.saveToken(body.accessToken)
-                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone)
+                tokenManager.saveUser(body.user.id, body.user.name, body.user.phone, body.user.role)
                 if (body.user.skillsJson != null) {
                     tokenManager.saveSkills(body.user.skillsJson)
                 }
@@ -307,7 +374,7 @@ class JobRepository @Inject constructor(
             val response = apiService.getProfile()
             if (response.isSuccessful && response.body() != null) {
                 val user = response.body()!!
-                tokenManager.saveUser(user.id, user.name, user.phone)
+                tokenManager.saveUser(user.id, user.name, user.phone, user.role)
                 if (user.skillsJson != null) {
                     tokenManager.saveSkills(user.skillsJson)
                 }
@@ -327,7 +394,7 @@ class JobRepository @Inject constructor(
             val response = apiService.updateProfile(ProfileUpdateRequest(name, skillsJson))
             if (response.isSuccessful && response.body() != null) {
                 val user = response.body()!!
-                tokenManager.saveUser(user.id, user.name, user.phone)
+                tokenManager.saveUser(user.id, user.name, user.phone, user.role)
                 if (user.skillsJson != null) {
                     tokenManager.saveSkills(user.skillsJson)
                 }

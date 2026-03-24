@@ -10,19 +10,17 @@ Prerequisites:
 import sys
 import io
 
-# ─── Fix Windows console encoding (prevents UnicodeEncodeError crashes) ──────────
-# Windows cmd/powershell default to cp1252 which cannot print Unicode characters.
-# This wraps stdout/stderr so ALL print() calls are safe, even with emojis.
-if sys.platform == "win32":
-    try:
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
-        )
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
-        )
-    except Exception:
-        pass  # Already wrapped or non-standard environment
+# --- Disabled wrapping because it was causing crashes on reload ---
+# if sys.platform == "win32":
+#     try:
+#         sys.stdout = io.TextIOWrapper(
+#             sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+#         )
+#         sys.stderr = io.TextIOWrapper(
+#             sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+#         )
+#     except Exception:
+#         pass  # Already wrapped or non-standard environment
 
 import os
 from sqlalchemy import create_engine

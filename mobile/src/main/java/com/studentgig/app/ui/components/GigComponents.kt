@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -330,9 +332,11 @@ fun GigUrgentBadge() {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
-            Text(
-                text = "ðŸ”¥",
-                fontSize = 10.sp
+            Icon(
+                imageVector = Icons.Filled.Whatshot,
+                contentDescription = null,
+                tint = GigColors.Error,
+                modifier = Modifier.size(12.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
@@ -425,6 +429,7 @@ fun GigSectionHeader(
 // â”€â”€â”€ Premium Job Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The main job listing card used across Home and Search screens.
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GigJobCard(
     job: Job,
@@ -571,8 +576,9 @@ fun GigJobCard(
 
         // â”€â”€â”€ Skills Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (skills.isNotEmpty()) {
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 skills.take(4).forEach { skill ->
@@ -1082,271 +1088,6 @@ fun GigConfirmDialog(
 }
 
 
-// â”€â”€â”€ Login Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Shared login sheet used in HomeScreen and SearchScreen.
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun GigLoginBottomSheet(
-    isLoading: Boolean,
-    errorMessage: String?,
-    onLogin: (phone: String, name: String?) -> Unit,
-    onGoogleLogin: (idToken: String) -> Unit = {},
-    onFirebaseLogin: (idToken: String, name: String?) -> Unit = { _, _ -> },
-    onDismiss: () -> Unit,
-) {
-    var phone by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var localGoogleError by remember { mutableStateOf<String?>(null) }
-    val displayError = localGoogleError ?: errorMessage
-
-    val context = LocalContext.current
-    val haptics = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = GigColors.SurfaceElevated,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(GigColors.TextMuted.copy(alpha = 0.4f))
-            )
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Welcome back",
-                color = GigColors.TextPrimary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp
-            )
-            Text(
-                text = "Sign in to access StudentGig instantly",
-                color = GigColors.TextSecondary,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Validation logic helpers
-            fun isJunkPhone(p: String): Boolean {
-                if (p.isEmpty()) return false
-                if (p.length >= 10 && p.all { it == p[0] }) return true
-                val sequential = "01234567890"
-                val reverseSequential = "09876543210"
-                if (p.length >= 5 && (sequential.contains(p) || reverseSequential.contains(p))) return true
-                return false
-            }
-
-            fun isJunkName(n: String): Boolean {
-                if (n.isBlank()) return false
-                val placeholders = listOf("admin", "test", "null", "none", "anonymous", "user", "unknown")
-                if (n.lowercase() in placeholders) return true
-                if (n.length >= 4 && n. windowed(4).any { win -> win.all { it == win[0] } }) return true
-                return false
-            }
-
-            // Phone and Name inputs
-            OutlinedTextField(
-                value = name,
-                onValueChange = { 
-                    if (it.length <= 50) name = it 
-                    localGoogleError = null 
-                },
-                label = { Text("Your Name (if new)") },
-                placeholder = { Text("Enter your name") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true,
-                isError = name.isNotEmpty() && (name.any { it.isDigit() } || isJunkName(name) || name.length < 2),
-                supportingText = {
-                    when {
-                        name.isEmpty() -> { /* No error yet */ }
-                        name.any { it.isDigit() } -> Text("Name should not contain numbers")
-                        isJunkName(name) -> Text("Please enter a professional name")
-                        name.length < 2 -> Text("Name is too short")
-                    }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GigColors.Primary,
-                    unfocusedBorderColor = GigColors.TextMuted.copy(alpha = 0.2f),
-                    focusedLabelColor = GigColors.Primary,
-                    cursorColor = GigColors.Primary,
-                    errorBorderColor = GigColors.Error,
-                    errorSupportingTextColor = GigColors.Error
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { 
-                    val filtered = it.filter { char -> char.isDigit() }
-                    if (filtered.length <= 12) phone = filtered 
-                    localGoogleError = null
-                },
-                label = { Text("Phone Number") },
-                placeholder = { Text("e.g. 9876543210") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                singleLine = true,
-                isError = phone.isNotEmpty() && (phone.length < 10 || isJunkPhone(phone)),
-                supportingText = {
-                    when {
-                        phone.isEmpty() -> { /* No error */ }
-                        isJunkPhone(phone) -> Text("Invalid or suspicious phone pattern")
-                        phone.length < 10 -> Text("Enter at least 10 digits")
-                    }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GigColors.Primary,
-                    unfocusedBorderColor = GigColors.TextMuted.copy(alpha = 0.2f),
-                    focusedLabelColor = GigColors.Primary,
-                    cursorColor = GigColors.Primary,
-                    errorBorderColor = GigColors.Error,
-                    errorSupportingTextColor = GigColors.Error
-                )
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (displayError != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(GigColors.ErrorMuted, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.ErrorOutline,
-                        contentDescription = null,
-                        tint = GigColors.Error,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = displayError,
-                        color = GigColors.Error,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Primary Login Button
-            val isValid = phone.length >= 10 && !isJunkPhone(phone) && 
-                          name.length >= 2 && !name.any { it.isDigit() } && !isJunkName(name)
-            
-            Button(
-                onClick = { 
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onLogin(phone, name) 
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(14.dp),
-                enabled = !isLoading && isValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = GigColors.Primary,
-                    disabledContainerColor = GigColors.Primary.copy(alpha = 0.5f)
-                )
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Continue with Phone", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = GigColors.TextMuted.copy(alpha = 0.1f))
-                Text("OR", modifier = Modifier.padding(horizontal = 16.dp), color = GigColors.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                HorizontalDivider(modifier = Modifier.weight(1f), color = GigColors.TextMuted.copy(alpha = 0.1f))
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Google Login Button
-            val credentialManager = remember { CredentialManager.create(context) }
-            val clientId = stringResource(id = R.string.default_web_client_id)
-            var isGoogleLoading by remember { mutableStateOf(false) }
-
-            OutlinedButton(
-                onClick = {
-                    if (isGoogleLoading) return@OutlinedButton
-                    isGoogleLoading = true
-                    localGoogleError = null
-                    coroutineScope.launch {
-                        try {
-                            val googleIdOption = GetGoogleIdOption.Builder()
-                                .setFilterByAuthorizedAccounts(false)
-                                .setServerClientId(clientId)
-                                .setAutoSelectEnabled(false)
-                                .build()
-                                
-                            val request = GetCredentialRequest.Builder()
-                                .addCredentialOption(googleIdOption)
-                                .build()
-                            
-                            val result = credentialManager.getCredential(context = context, request = request)
-                            val credential = result.credential
-                            
-                            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onGoogleLogin(googleIdTokenCredential.idToken)
-                            } else {
-                                localGoogleError = "Google login failed: unexpected response"
-                            }
-                        } catch (e: Exception) {
-                            localGoogleError = "Google login failed: ${e.localizedMessage}"
-                        } finally {
-                            isGoogleLoading = false
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, GigColors.TextMuted.copy(alpha = 0.2f))
-            ) {
-                if (isGoogleLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = GigColors.Primary, strokeWidth = 2.dp)
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("G", fontWeight = FontWeight.Black, color = GigColors.Primary, fontSize = 18.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Continue with Google", color = GigColors.TextPrimary)
-                    }
-                }
-            }
-        }
-    }
-}
 
 
