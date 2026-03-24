@@ -182,79 +182,8 @@ class ProfileViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showLoginSheet = false, loginError = null)
     }
 
-    fun onLoginSubmit(phone: String, name: String?) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = repository.login(phone, name)) {
-                is NetworkResult.Success -> {
-                    val userName = result.data.user.name
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null,
-                        successMessage = "Welcome, $userName! 🚀"
-                    )
-                    loadProfile()
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> {}
-            }
-        }
-    }
 
-    fun onGoogleLogin(idToken: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = repository.googleLogin(idToken)) {
-                is NetworkResult.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null
-                    )
-                    loadProfile()
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> {}
-            }
-        }
-    }
 
-    fun onFirebaseLogin(idToken: String, name: String? = null) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = repository.firebaseLogin(idToken, name)) {
-                is NetworkResult.Success -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggedIn = true,
-                        isLoggingIn = false,
-                        showLoginSheet = false,
-                        loginError = null
-                    )
-                    loadProfile()
-                }
-                is NetworkResult.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoggingIn = false,
-                        loginError = result.message
-                    )
-                }
-                is NetworkResult.Loading -> {}
-            }
-        }
-    }
 
     private fun parseSkills(skillsJson: String?): List<String> {
         if (skillsJson.isNullOrBlank()) return emptyList()

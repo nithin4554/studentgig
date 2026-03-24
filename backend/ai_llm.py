@@ -36,6 +36,9 @@ def _call_groq(prompt: str, max_tokens: int = 1024, retries: int = 2) -> Optiona
     
     Returns the response text, or None if the call fails.
     """
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         logger.warning("⚠️  GROQ_API_KEY not set — AI features will use fallback mode.")
@@ -61,7 +64,7 @@ def _call_groq(prompt: str, max_tokens: int = 1024, retries: int = 2) -> Optiona
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
-        "User-Agent": "StudentGig/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
     for attempt in range(retries + 1):

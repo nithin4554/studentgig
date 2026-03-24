@@ -76,12 +76,8 @@ fun MyApplicationsScreen(
     // Login sheet (triggered from Activity tab when not logged in)
     if (state.showLoginSheet) {
         GigLoginBottomSheet(
-            isLoading = state.isLoggingIn,
-            errorMessage = state.loginError,
-            onLogin = { phone, name -> viewModel.onLoginSubmit(phone, name) },
-            onGoogleLogin = { idToken -> viewModel.onGoogleLogin(idToken) },
-            onFirebaseLogin = { idToken, name -> viewModel.onFirebaseLogin(idToken, name) },
-            onDismiss = { viewModel.dismissLoginSheet() }
+            onDismiss = { viewModel.dismissLoginSheet() },
+            onSuccess = { viewModel.dismissLoginSheet() }
         )
     }
 

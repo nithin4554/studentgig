@@ -274,50 +274,15 @@ class PostJobViewModel @Inject constructor(
     }
 
     fun dismissLoginSheet() {
-        _uiState.value = _uiState.value.copy(showLoginSheet = false, loginError = null)
+        _uiState.value = _uiState.value.copy(
+            showLoginSheet = false,
+            loginError = null,
+            isLoggedIn = authManager.isLoggedIn()  // Re-check auth state after login
+        )
     }
 
-    fun onLoginSubmit(phone: String, name: String?) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = authManager.performLogin(phone, name)) {
-                is LoginResult.Success -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, showLoginSheet = false, isLoggedIn = true
-                )
-                is LoginResult.Failure -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, loginError = result.message
-                )
-            }
-        }
-    }
 
-    fun onGoogleLogin(idToken: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = authManager.performGoogleLogin(idToken)) {
-                is LoginResult.Success -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, showLoginSheet = false, isLoggedIn = true
-                )
-                is LoginResult.Failure -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, loginError = result.message
-                )
-            }
-        }
-    }
 
-    fun onFirebaseLogin(idToken: String, name: String? = null) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoggingIn = true, loginError = null)
-            when (val result = authManager.performFirebaseLogin(idToken, name)) {
-                is LoginResult.Success -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, showLoginSheet = false, isLoggedIn = true
-                )
-                is LoginResult.Failure -> _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false, loginError = result.message
-                )
-            }
-        }
-    }
 
     // ─── AI Intelligence Features ──────────────────────────────────────────
 

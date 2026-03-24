@@ -48,6 +48,7 @@ import com.studentgig.app.ui.viewmodel.EmployerViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmployerDashboardScreen(
+    onJobClick: (Int) -> Unit = {},
     viewModel: EmployerViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -255,7 +256,7 @@ fun EmployerDashboardScreen(
                                 color = GigColors.TextSecondary
                             )
                             Text(
-                                "Post jobs from the Home tab!",
+                                "Post jobs from the Post Job tab!",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = GigColors.TextMuted
                             )
@@ -285,7 +286,9 @@ fun EmployerDashboardScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onJobClick(job.id) }
                         ) {
                             Box(
                                 modifier = Modifier

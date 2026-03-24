@@ -121,23 +121,57 @@ data class ConflictCheckResponse(
 )
 
 /**
- * Auth: Phone-based login (OTP-ready, mocked for MVP).
+ * Auth: Password-based login.
  */
 data class LoginRequest(
     val phone: String,
-    val name: String? = "Student"
+    val password: String
+)
+
+/**
+ * Auth: Registration.
+ */
+data class RegisterRequest(
+    val phone: String,
+    val name: String,
+    val password: String,
+    @SerializedName("security_question") val securityQuestion: String,
+    @SerializedName("security_answer") val securityAnswer: String,
+    val role: String = "student"
+)
+
+/**
+ * Auth: Forgot Password Step 1 (Get Question).
+ */
+data class ResetQuestionRequest(
+    val phone: String
+)
+
+data class ResetQuestionResponse(
+    val question: String
+)
+
+/**
+ * Auth: Forgot Password Step 2 (Reset).
+ */
+data class ResetPasswordRequest(
+    val phone: String,
+    @SerializedName("security_answer") val securityAnswer: String,
+    @SerializedName("new_password") val newPassword: String
 )
 
 /**
  * Auth: Google One-Tap Sign In.
  */
 data class GoogleLoginRequest(
-    @SerializedName("idToken") val idToken: String
+    @SerializedName("idToken") val idToken: String,
+    val role: String = "student"
 )
 
 data class FirebaseLoginRequest(
     @SerializedName("idToken") val idToken: String,
-    val name: String? = "Student"
+    val name: String? = "Student",
+    val role: String = "student"
 )
 
 data class TokenResponse(
