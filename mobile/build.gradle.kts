@@ -23,8 +23,8 @@ android {
 
     buildTypes {
         debug {
-            // For ADB Reverse (connect Phone/Emulator to PC via USB/Localhost)
-            buildConfigField("String", "BASE_URL", "\"http://localhost:8000/\"")
+            // For XAMPP PHP Backend (connect Phone/Emulator to PC via Localhost)
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2/StudentGig/php_backend/\"")
         }
         release {
             isMinifyEnabled = true

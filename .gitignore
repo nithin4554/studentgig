@@ -55,3 +55,19 @@ crash*.txt
 *.keystore
 local.properties
 serviceAccountKey.json
+
+# --- Custom Ignored Files ---
+tmp/
+*.zip
+*.sql
+.git_status.txt
+backend/recent_register.txt
+backend/last_errors.txt
+backend/check_register.txt
+backend/check_users.py
+backend/test_post.py
+backend/server_log.txt
+build_log.txt
+backend/register_errors.txt
+web/eslint_report.json
+backend/*.txt
