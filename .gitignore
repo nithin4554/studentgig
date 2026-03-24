@@ -68,6 +68,7 @@ backend/check_users.py
 backend/test_post.py
 backend/server_log.txt
 build_log.txt
+php_backend/
 backend/register_errors.txt
 web/eslint_report.json
 backend/*.txt
